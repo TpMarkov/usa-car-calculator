@@ -1,0 +1,5 @@
+{
+  "name": "Bulgaria Car Import Calculator",
+  "description": "Calculate the total cost of importing a car from the USA to Bulgaria, including shipping, taxes, and fees.",
+  "requestFramePermissions": []
+}
