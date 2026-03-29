@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ArrowRight, Ship } from "lucide-react";
 import Testimonial from "@/components/ui/Testimonial";
 
