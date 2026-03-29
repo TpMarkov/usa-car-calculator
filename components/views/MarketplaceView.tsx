@@ -22,11 +22,12 @@ interface MarketplaceViewProps {
   onSelectCar?: (car: CarType) => void;
 }
 
-// Load cached cars from localStorage
-function getCachedCars(): { cars: CarType[]; total: number } | null {
+// Load cached cars from localStorage - now page-specific
+function getCachedCars(page: number): { cars: CarType[]; total: number } | null {
   if (typeof window === "undefined") return null;
   try {
-    const cachedCars = localStorage.getItem(CARS_CACHE_KEY);
+    // Check for page-specific cache key
+    const cachedCars = localStorage.getItem(`carsPage_${page}`);
     const cachedTotal = localStorage.getItem(CARS_TOTAL_KEY);
     if (cachedCars && cachedTotal) {
       return {
@@ -143,12 +144,12 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       setCars(fetchedCars);
       setTotalCars(data.total || 0);
       
-      // Store fetched cars in context AND also store total separately for cache
-      addCars(fetchedCars);
+      // Also update localStorage cache with page-specific key
       try {
+        localStorage.setItem(`carsPage_${page}`, JSON.stringify(data.cars || []));
         localStorage.setItem(CARS_TOTAL_KEY, String(data.total || 0));
       } catch (e) {
-        console.error("Failed to cache total:", e);
+        console.error("Failed to cache cars:", e);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -166,28 +167,52 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
 
   // Fetch on mount - use cached data first, only make API call if cache is empty
   useEffect(() => {
-    // Prevent duplicate fetch in Strict Mode
-    if (fetchInProgress.current) {
-      console.log('[MarketplaceView] Fetch already in progress, skipping');
-      return;
-    }
-    fetchInProgress.current = true;
-    
-    // First check localStorage cache
-    const cachedData = getCachedCars();
+    // First check localStorage cache for this specific page
+    const cachedData = getCachedCars(currentPage);
     if (cachedData && cachedData.cars.length > 0) {
-      console.log('[MarketplaceView] Using cached cars from localStorage:', cachedData.cars.length);
+      console.log(`[MarketplaceView] Using cached cars from localStorage for page ${currentPage}:`, cachedData.cars.length);
       setCars(cachedData.cars);
       setTotalCars(cachedData.total);
       // Also update the page cache
-      pageCache.set(1, { cars: cachedData.cars, total: cachedData.total });
+      pageCache.set(currentPage, { cars: cachedData.cars, total: cachedData.total });
       return;
     }
 
     // If no cache, fetch from API
-    console.log('[MarketplaceView] No cache found, fetching from API');
+    console.log(`[MarketplaceView] No cache found for page ${currentPage}, fetching from API`);
     fetchCars(currentPage);
   }, []);
+
+  // Handle page changes - fetch new data when currentPage changes
+  useEffect(() => {
+    // Skip on mount (handled by the effect above)
+    if (mounted) {
+      console.log(`[MarketplaceView] Page changed to ${currentPage}, checking cache`);
+      
+      // Check page cache first
+      const cached = pageCache.get(currentPage);
+      if (cached) {
+        console.log(`[MarketplaceView] Using page cache for page ${currentPage}`);
+        setCars(cached.cars);
+        setTotalCars(cached.total);
+        return;
+      }
+      
+      // Check localStorage cache
+      const cachedData = getCachedCars(currentPage);
+      if (cachedData && cachedData.cars.length > 0) {
+        console.log(`[MarketplaceView] Using localStorage cache for page ${currentPage}`);
+        setCars(cachedData.cars);
+        setTotalCars(cachedData.total);
+        pageCache.set(currentPage, { cars: cachedData.cars, total: cachedData.total });
+        return;
+      }
+      
+      // Fetch from API if not cached
+      console.log(`[MarketplaceView] Fetching page ${currentPage} from API`);
+      fetchCars(currentPage);
+    }
+  }, [currentPage, mounted]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
