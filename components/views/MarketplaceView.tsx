@@ -10,6 +10,7 @@ import type { Car as CarType } from "@/types";
 const CARS_PER_PAGE = 50;
 const CARS_CACHE_KEY = "carsCache";
 const CARS_TOTAL_KEY = "carsTotalCache";
+const LAST_PAGE_KEY = "lastMarketplacePage";
 
 // Simple LRU cache for storing previously fetched pages
 interface CacheEntry {
@@ -81,6 +82,19 @@ class PageCache {
 
 export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   const { addCars } = useCars();
+  // Get initial page from localStorage
+  const getInitialPage = (): number => {
+    if (typeof window === 'undefined') return 1;
+    const savedPage = localStorage.getItem(LAST_PAGE_KEY);
+    if (savedPage) {
+      const pageNum = parseInt(savedPage, 10);
+      if (!isNaN(pageNum) && pageNum >= 1) {
+        return pageNum;
+      }
+    }
+    return 1;
+  };
+
   const [currentPage, setCurrentPage] = useState(1);
   
   // Handle car selection - store in context and allow navigation
@@ -88,6 +102,8 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
     console.log('[MarketplaceView] handleSelectCar called with car:', car?.id);
     // Store car in context
     addCars([car]);
+    // Save current page to localStorage before navigating away
+    localStorage.setItem(LAST_PAGE_KEY, String(currentPage));
     // Call the navigation callback if provided
     if (onSelectCar) {
       console.log('[MarketplaceView] Calling parent onSelectCar');
@@ -163,6 +179,15 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   // Set mounted state after hydration to prevent SSR/CSR mismatch with motion components
   useEffect(() => {
     setMounted(true);
+    // Restore page from localStorage after mount
+    const savedPage = getInitialPage();
+    if (savedPage > 1) {
+      console.log(`[MarketplaceView] Restoring page ${savedPage} from localStorage`);
+      setCurrentPage(savedPage);
+      // Clear the saved page so it doesn't persist for future fresh loads
+      // (It will be re-saved when selecting a car again)
+      localStorage.removeItem(LAST_PAGE_KEY);
+    }
   }, []);
 
   // Fetch on mount - use cached data first, only make API call if cache is empty
