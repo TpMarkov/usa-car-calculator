@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronLeft, ChevronRight, Car } from "lucide-react";
 import CarCard from "@/components/ui/CarCard";
@@ -101,6 +101,7 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState("");
   const [mounted, setMounted] = useState(false);
+  const fetchInProgress = useRef(false);
   
   // Use memo to prevent cache recreation on re-renders
   const pageCache = useMemo(() => new PageCache(), []);
@@ -165,6 +166,13 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
 
   // Fetch on mount - use cached data first, only make API call if cache is empty
   useEffect(() => {
+    // Prevent duplicate fetch in Strict Mode
+    if (fetchInProgress.current) {
+      console.log('[MarketplaceView] Fetch already in progress, skipping');
+      return;
+    }
+    fetchInProgress.current = true;
+    
     // First check localStorage cache
     const cachedData = getCachedCars();
     if (cachedData && cachedData.cars.length > 0) {
