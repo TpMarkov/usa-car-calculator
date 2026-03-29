@@ -1,4 +1,4 @@
-// File: c:\Users\marko\OneDrive\Desktop\cars-from-usa\usa-car-calculator\app\layout.tsx
+// File: C:\Users\marko\OneDrive\Desktop\cars-from-usa\usa-car-calculator\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
