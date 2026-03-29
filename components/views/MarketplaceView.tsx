@@ -8,8 +8,6 @@ import { useCars } from "@/src/context/CarsContext";
 import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;
-const CARS_CACHE_KEY = "carsCache";
-const CARS_TOTAL_KEY = "carsTotalCache";
 const LAST_PAGE_KEY = "lastMarketplacePage";
 
 // Simple LRU cache for storing previously fetched pages

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Car, ArrowRight } from "lucide-react";
+import { Car } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { View, NavbarProps } from "@/types";
 
