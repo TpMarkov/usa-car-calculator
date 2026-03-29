@@ -76,19 +76,72 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('[CarDetailsView] Mounting with carId:', carId);
+    console.log('[CarDetailsView] Window defined:', typeof window !== 'undefined');
+    console.log('[CarDetailsView] localStorage available:', typeof window !== 'undefined' && !!window.localStorage);
+
     if (!carId) {
+      console.log('[CarDetailsView] No carId provided, setting loading to false');
       setLoading(false);
       return;
     }
 
-    // Try to get car from localStorage
+    // Try to get car from localStorage first
     const storedCar = getCarFromStorage(carId);
     if (storedCar) {
+      console.log('[CarDetailsView] Found car in localStorage:', storedCar.id);
       setCar(storedCar);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    console.log('[CarDetailsView] Car not in localStorage, trying API fetch');
+    // If not in localStorage, try to fetch from API
+    const fetchCarFromApi = async () => {
+      try {
+        console.log('[CarDetailsView] Fetching all cars from API to find carId:', carId);
+        const response = await fetch('/api/cars?page=1');
+        if (!response.ok) {
+          throw new Error('Failed to fetch cars');
+        }
+        const data = await response.json();
+        console.log('[CarDetailsView] API returned', data.cars?.length, 'cars');
+        
+        const foundCar = data.cars?.find((c: Car) => c.id === carId);
+        if (foundCar) {
+          console.log('[CarDetailsView] Found car via API:', foundCar.id);
+          setCar(foundCar);
+          // Cache in localStorage for future visits
+          try {
+            const existingCache = localStorage.getItem('carsCache');
+            const cars: Car[] = existingCache ? JSON.parse(existingCache) : [];
+            const existingIndex = cars.findIndex(c => c.id === foundCar.id);
+            if (existingIndex >= 0) {
+              cars[existingIndex] = foundCar;
+            } else {
+              cars.push(foundCar);
+            }
+            localStorage.setItem('carsCache', JSON.stringify(cars));
+            console.log('[CarDetailsView] Cached car in localStorage');
+          } catch (e) {
+            console.error('[CarDetailsView] Failed to cache car:', e);
+          }
+        } else {
+          console.log('[CarDetailsView] Car not found in API response');
+          setFetchError(`Car with ID ${carId} not found in current inventory`);
+        }
+      } catch (error) {
+        console.error('[CarDetailsView] API fetch failed:', error);
+        setFetchError('Failed to load car data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCarFromApi();
   }, [carId]);
 
   // Reset selected image when car changes
@@ -160,9 +213,15 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
               <CarIcon size={40} />
             </div>
             <h2 className="text-2xl sm:text-3xl font-display font-bold mb-3">Car data not available</h2>
-            <p className="text-gray-400 text-base mb-6">
+            <p className="text-gray-400 text-base mb-2">
               Please return to marketplace to view car details.
             </p>
+            {fetchError && (
+              <p className="text-gray-500 text-sm mb-4">Debug: {fetchError}</p>
+            )}
+            {carId && (
+              <p className="text-gray-500 text-xs mb-4">Debug: carId={carId}</p>
+            )}
             <button
               onClick={handleBack}
               className="px-6 py-3 bg-brand text-white rounded-xl font-semibold hover:bg-brand/90 transition-colors inline-flex items-center gap-2"
