@@ -55,12 +55,12 @@ export default function CarCard({ car, index, onSelectCar }: CarCardProps) {
     >
       <div className="aspect-[16/10] overflow-hidden relative bg-gray-100">
         <img
-          src={car.image}
+          src={car.image || "/missing-image.png"}
           alt={displayTitle}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           referrerPolicy="no-referrer"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800";
+            (e.target as HTMLImageElement).src = "/missing-image.png";
           }}
         />
         {car.year && (

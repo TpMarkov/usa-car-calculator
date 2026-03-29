@@ -70,7 +70,7 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
   
   // If no images in media, use the main image
   const displayImages = allImages.length > 0 ? allImages : (car?.image ? [car.image] : []);
-  const currentImage = displayImages[selectedImageIndex] || displayImages[0];
+  const currentImage = displayImages[selectedImageIndex] || "/missing-image.png";
 
   // Get display title
   const displayTitle = car?.title || `${car?.year} ${car?.make} ${car?.model}`.trim();
@@ -166,8 +166,7 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800";
+                  (e.target as HTMLImageElement).src = "/missing-image.png";
                 }}
               />
             </div>
@@ -191,8 +190,7 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=200";
+                        (e.target as HTMLImageElement).src = "/missing-image.png";
                       }}
                     />
                   </button>
