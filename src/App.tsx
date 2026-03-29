@@ -15,14 +15,16 @@ import {
   ChevronRight,
   Calculator,
   Search,
+  Filter,
   Link as LinkIcon,
   TrendingUp,
-  Quote
+  Quote,
+  Check
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
 // --- Types ---
-type View = 'landing' | 'breakdown' | 'how-it-works';
+type View = 'landing' | 'breakdown' | 'how-it-works' | 'guide' | 'contact' | 'marketplace';
 
 // --- Components ---
 
@@ -41,8 +43,10 @@ const Navbar = ({ onViewChange, currentView }: { onViewChange: (view: View) => v
       
       <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest text-ink/60">
         <button onClick={() => onViewChange('landing')} className={cn("hover:text-brand transition-colors", currentView === 'landing' && "text-brand")}>Home</button>
+        <button onClick={() => onViewChange('marketplace')} className={cn("hover:text-brand transition-colors", currentView === 'marketplace' && "text-brand")}>Marketplace</button>
         <button onClick={() => onViewChange('how-it-works')} className={cn("hover:text-brand transition-colors", currentView === 'how-it-works' && "text-brand")}>How it works</button>
-        <a href="#contact" className="hover:text-brand transition-colors">Contact</a>
+        <button onClick={() => onViewChange('guide')} className={cn("hover:text-brand transition-colors", currentView === 'guide' && "text-brand")}>Guide</button>
+        <button onClick={() => onViewChange('contact')} className={cn("hover:text-brand transition-colors", currentView === 'contact' && "text-brand")}>Contact</button>
       </div>
       
       <button 
@@ -287,6 +291,531 @@ const HowItWorksView = ({ onViewChange }: { onViewChange: (view: View) => void }
               className="bg-white text-brand px-12 py-6 rounded-[2rem] font-bold text-xl hover:bg-ink hover:text-white transition-all shadow-2xl"
             >
               Back to Calculator
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+);
+
+const MarketplaceView = ({ onViewChange }: { onViewChange: (view: View) => void }) => {
+  const [search, setSearch] = useState({ make: '', model: '', year: '', priceRange: '' });
+  
+  const cars = [
+    { id: 1, make: 'Toyota', model: 'Camry', year: 2022, price: 24500, image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb', mileage: '12,000 mi', location: 'Miami, FL' },
+    { id: 2, make: 'Ford', model: 'F-150', year: 2021, price: 38900, image: 'https://images.unsplash.com/photo-1583121274602-3e2820c69888', mileage: '25,000 mi', location: 'Dallas, TX' },
+    { id: 3, make: 'Tesla', model: 'Model 3', year: 2023, price: 42000, image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89', mileage: '5,000 mi', location: 'Los Angeles, CA' },
+    { id: 4, make: 'BMW', model: 'X5', year: 2020, price: 45000, image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e', mileage: '30,000 mi', location: 'New York, NY' },
+    { id: 5, make: 'Honda', model: 'Civic', year: 2019, price: 18500, image: 'https://images.unsplash.com/photo-1594070319944-7c0c63146b77', mileage: '45,000 mi', location: 'Chicago, IL' },
+    { id: 6, make: 'Porsche', model: '911', year: 2021, price: 115000, image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70', mileage: '8,000 mi', location: 'San Francisco, CA' },
+  ];
+
+  const filteredCars = cars.filter(car => {
+    const matchMake = car.make.toLowerCase().includes(search.make.toLowerCase());
+    const matchModel = car.model.toLowerCase().includes(search.model.toLowerCase());
+    const matchYear = search.year ? car.year.toString() === search.year : true;
+    let matchPrice = true;
+    if (search.priceRange) {
+      const [min, max] = search.priceRange.split('-').map(Number);
+      matchPrice = car.price >= min && (max ? car.price <= max : true);
+    }
+    return matchMake && matchModel && matchYear && matchPrice;
+  });
+
+  return (
+    <main className="pt-32 pb-32 px-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Intro Section */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-16"
+        >
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-1 bg-brand" />
+            <span className="text-brand font-bold uppercase tracking-[0.3em] text-sm">US Marketplace</span>
+          </div>
+          <h1 className="text-7xl md:text-9xl font-display font-bold tracking-tighter leading-[0.85] mb-8">
+            Find Your <span className="text-brand">Dream</span> Car
+          </h1>
+          <p className="text-2xl text-ink/40 max-w-3xl font-medium leading-tight">
+            Browse thousands of vehicles from top US marketplaces. We handle the inspection, shipping, and import for you.
+          </p>
+        </motion.section>
+
+        {/* Filters */}
+        <section className="mb-16 p-8 bg-white border border-ink/5 rounded-[3rem] shadow-2xl shadow-ink/5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">Make</label>
+              <div className="relative">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-ink/30" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="e.g. Toyota"
+                  className="w-full bg-surface py-4 pl-14 pr-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
+                  value={search.make}
+                  onChange={(e) => setSearch({ ...search, make: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">Model</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Camry"
+                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
+                value={search.model}
+                onChange={(e) => setSearch({ ...search, model: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">Year</label>
+              <input 
+                type="number" 
+                placeholder="Year"
+                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
+                value={search.year}
+                onChange={(e) => setSearch({ ...search, year: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">Price Range</label>
+              <select 
+                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium appearance-none"
+                value={search.priceRange}
+                onChange={(e) => setSearch({ ...search, priceRange: e.target.value })}
+              >
+                <option value="">Any Price</option>
+                <option value="0-10000">Under $10k</option>
+                <option value="10000-20000">$10k - $20k</option>
+                <option value="20000-50000">$20k - $50k</option>
+                <option value="50000-1000000">$50k+</option>
+              </select>
+            </div>
+            <button className="bg-brand text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-ink transition-all shadow-lg shadow-brand/20">
+              <Filter size={18} />
+              <span>Search Cars</span>
+            </button>
+          </div>
+        </section>
+
+        {/* Cars Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
+          {filteredCars.map((car, i) => (
+            <motion.article 
+              key={car.id}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="group bg-white rounded-[3rem] overflow-hidden border border-ink/5 hover:shadow-2xl transition-all duration-500"
+            >
+              <div className="aspect-[4/3] overflow-hidden relative">
+                <img 
+                  src={car.image} 
+                  alt={`${car.year} ${car.make} ${car.model}`} 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-sm font-bold shadow-sm">
+                  {car.year}
+                </div>
+              </div>
+              <div className="p-8">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold tracking-tight mb-1">{car.make} {car.model}</h3>
+                    <div className="flex items-center gap-2 text-ink/40 text-sm font-medium">
+                      <MapPin size={14} />
+                      <span>{car.location}</span>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-display font-bold text-brand">
+                    ${car.price.toLocaleString()}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  <div className="p-4 bg-surface rounded-2xl flex items-center gap-3">
+                    <TrendingUp size={16} className="text-brand" />
+                    <span className="text-sm font-bold">{car.mileage}</span>
+                  </div>
+                  <div className="p-4 bg-surface rounded-2xl flex items-center gap-3">
+                    <Fuel size={16} className="text-brand" />
+                    <span className="text-sm font-bold">Gasoline</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => onViewChange('contact')}
+                  className="w-full bg-ink text-white py-5 rounded-2xl font-bold hover:bg-brand transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Import This Car</span>
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+            </motion.article>
+          ))}
+        </div>
+        
+        {filteredCars.length === 0 && (
+          <div className="text-center py-32">
+            <div className="w-24 h-24 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-8 text-ink/20">
+              <Search size={48} />
+            </div>
+            <h2 className="text-3xl font-display font-bold mb-4">No cars found</h2>
+            <p className="text-ink/40 text-lg">Try adjusting your filters to find what you're looking for.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+};
+
+const ContactView = ({ onViewChange }: { onViewChange: (view: View) => void }) => {
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  if (submitted) {
+    return (
+      <main className="pt-32 pb-32 px-6 min-h-[80vh] flex items-center justify-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center max-w-2xl"
+        >
+          <div className="w-24 h-24 bg-brand/10 text-brand rounded-full flex items-center justify-center mx-auto mb-8">
+            <Check size={48} />
+          </div>
+          <h1 className="text-6xl font-display font-bold mb-6 tracking-tighter">Thank You!</h1>
+          <p className="text-2xl text-ink/60 mb-12 leading-tight">
+            Your request has been submitted successfully. Our team will review your details and connect you with trusted partners shortly.
+          </p>
+          <button 
+            onClick={() => onViewChange('landing')}
+            className="bg-ink text-white px-12 py-6 rounded-[2rem] font-bold text-xl hover:bg-brand transition-all"
+          >
+            Back to Home
+          </button>
+        </motion.div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="pt-32 pb-32 px-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Intro Section */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-24"
+        >
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-1 bg-brand" />
+            <span className="text-brand font-bold uppercase tracking-[0.3em] text-sm">Get Assistance</span>
+          </div>
+          <h1 className="text-7xl md:text-9xl font-display font-bold tracking-tighter leading-[0.85] mb-8">
+            Help with <span className="text-brand">Import</span>
+          </h1>
+          <p className="text-2xl text-ink/40 max-w-3xl font-medium leading-tight">
+            Submit your request and we will connect you with trusted shipping and import partners to handle the process for you.
+          </p>
+        </motion.section>
+
+        <div className="grid lg:grid-cols-2 gap-20 items-start">
+          {/* Form Section */}
+          <section>
+            <form onSubmit={handleSubmit} className="space-y-12">
+              {/* Personal Info */}
+              <div className="space-y-8">
+                <h2 className="text-3xl font-display font-bold tracking-tight flex items-center gap-4">
+                  <span className="w-8 h-8 rounded-full bg-brand/10 text-brand text-sm flex items-center justify-center">01</span>
+                  Your Details
+                </h2>
+                <div className="grid gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="name" className="text-xs font-bold uppercase tracking-widest text-ink/40">Full Name</label>
+                    <input type="text" id="name" required className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors" />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="email" className="text-xs font-bold uppercase tracking-widest text-ink/40">Email Address</label>
+                    <input type="email" id="email" required className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors" />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="phone" className="text-xs font-bold uppercase tracking-widest text-ink/40">Phone Number</label>
+                    <input type="tel" id="phone" className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Car Info */}
+              <div className="space-y-8">
+                <h2 className="text-3xl font-display font-bold tracking-tight flex items-center gap-4">
+                  <span className="w-8 h-8 rounded-full bg-brand/10 text-brand text-sm flex items-center justify-center">02</span>
+                  Car Information
+                </h2>
+                <div className="grid gap-6">
+                  <div className="space-y-2">
+                    <label htmlFor="car-url" className="text-xs font-bold uppercase tracking-widest text-ink/40">Car Listing URL</label>
+                    <input type="url" id="car-url" required placeholder="https://example.com/car" className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors" />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="budget" className="text-xs font-bold uppercase tracking-widest text-ink/40">Estimated Budget (€)</label>
+                    <input type="number" id="budget" className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors" />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="notes" className="text-xs font-bold uppercase tracking-widest text-ink/40">Additional Details</label>
+                    <textarea id="notes" rows={4} placeholder="Any specific requirements or questions..." className="w-full bg-surface border-b-2 border-ink/10 py-4 text-xl font-medium focus:border-brand outline-none transition-colors resize-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preferences */}
+              <div className="space-y-8">
+                <h2 className="text-3xl font-display font-bold tracking-tight flex items-center gap-4">
+                  <span className="w-8 h-8 rounded-full bg-brand/10 text-brand text-sm flex items-center justify-center">03</span>
+                  Preferences
+                </h2>
+                <div className="grid gap-4">
+                  {[
+                    { id: 'container', label: 'Container Shipping' },
+                    { id: 'roro', label: 'Roll-on/Roll-off (RoRo)' },
+                    { id: 'door', label: 'Door-to-door delivery' }
+                  ].map(opt => (
+                    <label key={opt.id} className="flex items-center gap-4 p-6 bg-white border border-ink/5 rounded-2xl cursor-pointer hover:border-brand/30 transition-colors group">
+                      <input type="checkbox" className="w-6 h-6 accent-brand" />
+                      <span className="text-lg font-bold">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Consent & Submit */}
+              <div className="space-y-8 pt-8">
+                <label className="flex items-start gap-4 cursor-pointer group">
+                  <input type="checkbox" required className="mt-1 w-5 h-5 accent-brand" />
+                  <span className="text-sm text-ink/60 font-medium leading-relaxed">
+                    I agree to the <a href="/terms" className="text-brand underline">Terms of Service</a> and <a href="/privacy" className="text-brand underline">Privacy Policy</a>. I understand my data is shared with trusted partners.
+                  </span>
+                </label>
+                <button 
+                  type="submit"
+                  className="w-full bg-ink text-white py-8 rounded-[2rem] font-bold text-2xl hover:bg-brand transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  Submit Request <ArrowRight size={24} />
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* Trust & Info Section */}
+          <aside className="space-y-16 lg:sticky lg:top-32">
+            <section className="p-12 bg-surface border border-ink/5 rounded-[3rem]">
+              <h2 className="text-4xl font-display font-bold mb-8 tracking-tighter">Why Submit a Request?</h2>
+              <ul className="space-y-8">
+                {[
+                  { title: "Verified Partners", desc: "We connect you with shipping companies we've personally vetted." },
+                  { title: "Save Time", desc: "Avoid the hassle of researching logistics and customs paperwork." },
+                  { title: "Personalized Help", desc: "Get a tailored solution based on your specific vehicle and budget." }
+                ].map((item, i) => (
+                  <li key={i} className="flex gap-6">
+                    <div className="w-12 h-12 rounded-2xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                      <Check size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                      <p className="text-ink/60 leading-relaxed">{item.desc}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="p-12 bg-brand text-white rounded-[3rem] relative overflow-hidden">
+              <div className="absolute inset-0 bg-white/10 blur-3xl rounded-full -ml-20 -mt-20" />
+              <div className="relative z-10">
+                <h2 className="text-4xl font-display font-bold mb-6 tracking-tighter">Your Data is Safe</h2>
+                <p className="text-lg font-medium opacity-80 leading-relaxed">
+                  We respect your privacy. Your information is only shared with trusted partners for the purpose of completing your request. We use industry-standard encryption to protect your details.
+                </p>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  );
+};
+
+const GuideView = ({ onViewChange }: { onViewChange: (view: View) => void }) => (
+  <main className="pt-32 pb-32 px-6">
+    <div className="max-w-7xl mx-auto">
+      {/* Intro Section */}
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-24"
+      >
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-12 h-1 bg-brand" />
+          <span className="text-brand font-bold uppercase tracking-[0.3em] text-sm">Full Guide</span>
+        </div>
+        <h1 className="text-7xl md:text-9xl font-display font-bold tracking-tighter leading-[0.85] mb-8">
+          How to <span className="text-brand">Import</span>
+        </h1>
+        <p className="text-2xl text-ink/40 max-w-3xl font-medium leading-tight">
+          Importing a car from the United States can save you money and give you access to a wider selection of vehicles. Here is a complete step-by-step guide to the process.
+        </p>
+      </motion.section>
+
+      {/* Step by Step Process */}
+      <section className="mb-32">
+        <h2 className="text-5xl font-display font-bold mb-16 tracking-tighter">Step-by-Step Process</h2>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
+          {[
+            {
+              step: "1",
+              title: "Find a Car in the USA",
+              desc: "Search for vehicles on US marketplaces. You can choose from auctions, dealers, or private sellers.",
+              image: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7"
+            },
+            {
+              step: "2",
+              title: "Check the Vehicle Details",
+              desc: "Review the condition, mileage, and history of the vehicle before making a decision.",
+              image: "https://images.unsplash.com/photo-1581091215367-59ab6b1b8f3b"
+            },
+            {
+              step: "3",
+              title: "Calculate Total Import Cost",
+              desc: "Use our calculator to estimate shipping, taxes, and additional fees for importing the car to Bulgaria.",
+              image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f",
+              link: true
+            },
+            {
+              step: "4",
+              title: "Arrange Shipping",
+              desc: "Choose a shipping method such as container shipping or roll-on/roll-off (RoRo).",
+              image: "https://images.unsplash.com/photo-1565891741441-64926e441838"
+            },
+            {
+              step: "5",
+              title: "Customs Clearance in Bulgaria",
+              desc: "Pay customs duty and VAT, and complete the import process through Bulgarian authorities.",
+              image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d"
+            },
+            {
+              step: "6",
+              title: "Receive Your Car",
+              desc: "After clearance, your car is ready for pickup or delivery to your location.",
+              image: "https://images.unsplash.com/photo-1502877338535-766e1452684a"
+            }
+          ].map((item, i) => (
+            <motion.article 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="group"
+            >
+              <div className="aspect-video rounded-[2.5rem] overflow-hidden mb-8 bg-ink/5">
+                <img 
+                  src={item.image} 
+                  alt={item.title} 
+                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="flex items-start gap-4">
+                <span className="text-4xl font-display font-bold text-brand/20 leading-none">{item.step}</span>
+                <div>
+                  <h3 className="text-2xl font-bold mb-4 tracking-tight">{item.title}</h3>
+                  <p className="text-ink/60 leading-relaxed mb-4">{item.desc}</p>
+                  {item.link && (
+                    <button 
+                      onClick={() => onViewChange('landing')}
+                      className="text-brand font-bold uppercase tracking-widest text-xs flex items-center gap-2 hover:text-ink transition-colors"
+                    >
+                      Try the calculator <ArrowRight size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.article>
+          ))}
+        </div>
+      </section>
+
+      {/* Cost Explanation & FAQ */}
+      <div className="grid lg:grid-cols-2 gap-20">
+        <section>
+          <h2 className="text-4xl font-display font-bold mb-12 tracking-tighter">What Costs Are Included?</h2>
+          <ul className="space-y-6">
+            {[
+              "Car purchase price",
+              "Transport within the USA",
+              "Ocean shipping",
+              "Customs duty (~10%)",
+              "VAT (20%)",
+              "Port and handling fees"
+            ].map((item, i) => (
+              <li key={i} className="flex items-center gap-4 p-6 bg-white border border-ink/5 rounded-2xl font-bold text-lg">
+                <div className="w-2 h-2 bg-brand rounded-full" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="text-4xl font-display font-bold mb-12 tracking-tighter">Frequently Asked Questions</h2>
+          <div className="space-y-8">
+            {[
+              {
+                q: "Is it cheaper to import a car from the USA?",
+                a: "In many cases, yes. Even with shipping and taxes, prices can be lower compared to the local market."
+              },
+              {
+                q: "How long does shipping take?",
+                a: "Shipping usually takes between 6 and 10 weeks."
+              },
+              {
+                q: "Can I import any car?",
+                a: "Most cars can be imported, but they must meet EU regulations and standards."
+              }
+            ].map((faq, i) => (
+              <article key={i} className="p-8 bg-surface border border-ink/5 rounded-3xl">
+                <h3 className="text-xl font-bold mb-4 tracking-tight">{faq.q}</h3>
+                <p className="text-ink/60 leading-relaxed">{faq.a}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* CTA Section */}
+      <section className="mt-32">
+        <div className="bg-ink text-surface p-16 md:p-24 rounded-[4rem] text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-brand/10 blur-[120px] rounded-full -mr-32 -mt-32" />
+          <div className="relative z-10">
+            <h2 className="text-5xl md:text-7xl font-display font-bold mb-8 tracking-tighter">Ready to Calculate Your Cost?</h2>
+            <p className="text-xl font-medium mb-12 opacity-60 max-w-xl mx-auto">
+              Use our tool to get an instant estimate for importing your chosen car.
+            </p>
+            <button 
+              onClick={() => onViewChange('landing')}
+              className="bg-brand text-white px-12 py-6 rounded-[2rem] font-bold text-xl hover:bg-white hover:text-ink transition-all shadow-2xl"
+            >
+              Go to Calculator
             </button>
           </div>
         </div>
@@ -775,7 +1304,10 @@ export default function App() {
                         <p className="text-2xl font-medium mb-12 opacity-90 max-w-xl">
                           Want help importing this car? We can connect you with trusted shipping partners and handle the entire process.
                         </p>
-                        <button className="bg-white text-brand px-12 py-6 rounded-[2rem] font-bold text-xl hover:bg-ink hover:text-white transition-all flex items-center gap-4 shadow-2xl">
+                        <button 
+                          onClick={() => setView('contact')}
+                          className="bg-white text-brand px-12 py-6 rounded-[2rem] font-bold text-xl hover:bg-ink hover:text-white transition-all flex items-center gap-4 shadow-2xl"
+                        >
                           <span>Request Assistance</span>
                           <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
                         </button>
@@ -797,6 +1329,39 @@ export default function App() {
             transition={{ duration: 0.5 }}
           >
             <HowItWorksView onViewChange={setView} />
+          </motion.div>
+        )}
+        {view === 'guide' && (
+          <motion.div
+            key="guide"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <GuideView onViewChange={setView} />
+          </motion.div>
+        )}
+        {view === 'marketplace' && (
+          <motion.div
+            key="marketplace"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <MarketplaceView onViewChange={setView} />
+          </motion.div>
+        )}
+        {view === 'contact' && (
+          <motion.div
+            key="contact"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <ContactView onViewChange={setView} />
           </motion.div>
         )}
       </AnimatePresence>
