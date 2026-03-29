@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Ship } from "lucide-react";
+import { Ship } from "lucide-react";
 import Testimonial from "@/components/ui/Testimonial";
 
 export default function VehicleInfo() {
