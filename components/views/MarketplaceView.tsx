@@ -126,11 +126,18 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
 
   // Fetch cars from API with caching
   const fetchCars = useCallback(async (page: number) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      return;
+    }
+    fetchInProgress.current = true;
+
     // Check cache first
     const cached = pageCache.get(page);
     if (cached) {
       setCars(cached.cars);
       setTotalCars(cached.total);
+      fetchInProgress.current = false;
       return;
     }
 
@@ -172,6 +179,7 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       setTotalCars(0);
     } finally {
       setLoading(false);
+      fetchInProgress.current = false;
     }
   }, [pageCache]);
 
