@@ -9,6 +9,7 @@ import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;
 const LAST_PAGE_KEY = "lastMarketplacePage";
+const CARS_TOTAL_KEY = "carsTotal";
 
 // Simple LRU cache for storing previously fetched pages
 interface CacheEntry {
