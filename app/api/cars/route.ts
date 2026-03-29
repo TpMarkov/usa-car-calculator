@@ -24,6 +24,9 @@ interface NormalizedCar {
   fuel?: string;
   vin?: string;
   location?: string;
+  media?: {
+    photo_links?: string[];
+  };
 }
 
 interface ApiResponse {
@@ -108,6 +111,7 @@ function normalizeCar(car: any): NormalizedCar | null {
       fuel: fuel,
       vin: car.vin,
       location: location,
+      media: car.media ? { photo_links: car.media.photo_links } : undefined,
     };
   } catch (error) {
     console.error("Error normalizing car:", error);

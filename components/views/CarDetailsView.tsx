@@ -42,6 +42,7 @@ function getCarFromStorage(carId: string): Car | null {
 export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     if (!carId) {
@@ -56,6 +57,20 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
     }
     setLoading(false);
   }, [carId]);
+
+  // Reset selected image when car changes
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [car?.id]);
+
+  // Get all available images
+  const allImages = car?.media?.photo_links?.filter(
+    (url: string) => !url.includes("photo_unavailable")
+  ) || [];
+  
+  // If no images in media, use the main image
+  const displayImages = allImages.length > 0 ? allImages : (car?.image ? [car.image] : []);
+  const currentImage = displayImages[selectedImageIndex] || displayImages[0];
 
   // Get display title
   const displayTitle = car?.title || `${car?.year} ${car?.make} ${car?.model}`.trim();
@@ -143,9 +158,10 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
             transition={{ delay: 0.1 }}
             className="lg:col-span-2"
           >
-            <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-gray-100">
+            {/* Main Image */}
+            <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-gray-100 mb-3">
               <img
-                src={car.image}
+                src={currentImage}
                 alt={displayTitle}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -155,6 +171,41 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
                 }}
               />
             </div>
+
+            {/* Image Gallery Thumbnails */}
+            {displayImages.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {displayImages.map((img: string, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImageIndex === index
+                        ? "border-brand shadow-md"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <img
+                      src={img}
+                      alt={`${displayTitle} - Image ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=200";
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Image counter for multiple images */}
+            {displayImages.length > 1 && (
+              <p className="text-sm text-gray-500 mt-2 text-center">
+                {selectedImageIndex + 1} of {displayImages.length} photos
+              </p>
+            )}
           </motion.div>
 
           {/* Right Column - Overview */}

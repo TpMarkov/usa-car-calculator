@@ -8,6 +8,8 @@ import { useCars } from "@/src/context/CarsContext";
 import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;
+const CARS_CACHE_KEY = "carsCache";
+const CARS_TOTAL_KEY = "carsTotalCache";
 
 // Simple LRU cache for storing previously fetched pages
 interface CacheEntry {
@@ -18,6 +20,24 @@ interface CacheEntry {
 
 interface MarketplaceViewProps {
   onSelectCar?: (car: CarType) => void;
+}
+
+// Load cached cars from localStorage
+function getCachedCars(): { cars: CarType[]; total: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cachedCars = localStorage.getItem(CARS_CACHE_KEY);
+    const cachedTotal = localStorage.getItem(CARS_TOTAL_KEY);
+    if (cachedCars && cachedTotal) {
+      return {
+        cars: JSON.parse(cachedCars),
+        total: parseInt(cachedTotal, 10)
+      };
+    }
+  } catch (error) {
+    console.error("Failed to load cached cars:", error);
+  }
+  return null;
 }
 
 class PageCache {
@@ -122,8 +142,13 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       setCars(fetchedCars);
       setTotalCars(data.total || 0);
       
-      // Store fetched cars in context
+      // Store fetched cars in context AND also store total separately for cache
       addCars(fetchedCars);
+      try {
+        localStorage.setItem(CARS_TOTAL_KEY, String(data.total || 0));
+      } catch (e) {
+        console.error("Failed to cache total:", e);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setCars([]);
@@ -138,10 +163,23 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
     setMounted(true);
   }, []);
 
-  // Fetch on mount and when page changes
+  // Fetch on mount - use cached data first, only make API call if cache is empty
   useEffect(() => {
+    // First check localStorage cache
+    const cachedData = getCachedCars();
+    if (cachedData && cachedData.cars.length > 0) {
+      console.log('[MarketplaceView] Using cached cars from localStorage:', cachedData.cars.length);
+      setCars(cachedData.cars);
+      setTotalCars(cachedData.total);
+      // Also update the page cache
+      pageCache.set(1, { cars: cachedData.cars, total: cachedData.total });
+      return;
+    }
+
+    // If no cache, fetch from API
+    console.log('[MarketplaceView] No cache found, fetching from API');
     fetchCars(currentPage);
-  }, [currentPage, fetchCars]);
+  }, []);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {

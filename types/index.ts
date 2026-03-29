@@ -22,6 +22,9 @@ export interface Car {
   fuel?: string;
   vin?: string;
   location?: string;
+  media?: {
+    photo_links?: string[];
+  };
 }
 
 // Testimonial type
