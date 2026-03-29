@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronLeft, ChevronRight, Car } from "lucide-react";
 import CarCard from "@/components/ui/CarCard";
-import { useCars } from "@/src/context/CarsContext";
+import { useCars } from "@/context/CarsContext";
 import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;

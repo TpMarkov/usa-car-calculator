@@ -4,7 +4,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import MarketplaceView from "@/components/views/MarketplaceView";
 import CarDetailsView from "@/components/views/CarDetailsView";
-import { CarsProvider } from "@/src/context/CarsContext";
+import { CarsProvider } from "@/context/CarsContext";
 import { useState } from "react";
 import type { Car } from "@/types";
 
