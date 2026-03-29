@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Calculator,
   Search,
-  Filter,
   Link as LinkIcon,
   TrendingUp,
   Quote,
