@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Gauge, Fuel, Calendar, DollarSign, Car as CarIcon, Warehouse } from "lucide-react";
-import type { Car } from "@/types";
+import type { Car, MediaData } from "@/types";
 
 // Helper function to safely format numbers
 const formatNumber = (num?: number): string => {
@@ -39,6 +39,39 @@ function getCarFromStorage(carId: string): Car | null {
   return null;
 }
 
+// Helper to extract valid URLs from various possible media fields
+function extractAllUrls(media: MediaData | undefined): string[] {
+  if (!media) return [];
+
+  const urls: string[] = [];
+  const addUrls = (arr: (string | { url?: string; photo?: string; src?: string; image?: string })[] | undefined) => {
+    if (!arr || !Array.isArray(arr)) return;
+    for (const item of arr) {
+      let url = "";
+      if (typeof item === "string") {
+        url = item;
+      } else if (typeof item === "object" && item !== null) {
+        url = (item as any).url || (item as any).photo || (item as any).src || (item as any).image || "";
+      }
+      if (url && typeof url === "string" && !url.includes("photo_unavailable") && !url.includes("placeholder")) {
+        urls.push(url);
+      }
+    }
+  };
+
+  // Try photo_links first
+  addUrls(media.photo_links);
+  // Then all_photos
+  addUrls(media.all_photos);
+  // Then images
+  addUrls(media.images);
+  // Finally photos
+  addUrls(media.photos);
+
+  // Deduplicate
+  return [...new Set(urls)];
+}
+
 export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,11 +96,23 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
     setSelectedImageIndex(0);
   }, [car?.id]);
 
-  // Get all available images
-  const allImages = car?.media?.photo_links?.filter(
-    (url: string) => !url.includes("photo_unavailable")
-  ) || [];
-  
+  // Get all available images - with diagnostic logging
+  const allImages = (() => {
+    const media = car?.media;
+    console.log("[CarDetailsView] Media structure:", JSON.stringify(media, null, 2));
+
+    // Try _processed_urls first (from API processing)
+    if (media?._processed_urls && Array.isArray(media._processed_urls) && media._processed_urls.length > 0) {
+      console.log("[CarDetailsView] Using _processed_urls:", media._processed_urls.length);
+      return media._processed_urls;
+    }
+
+    // Otherwise extract from various fields
+    const urls = extractAllUrls(media);
+    console.log("[CarDetailsView] Extracted URLs:", urls.length);
+    return urls;
+  })();
+
   // If no images in media, use the main image
   const displayImages = allImages.length > 0 ? allImages : (car?.image ? [car.image] : []);
   const currentImage = displayImages[selectedImageIndex] || "/missing-image.png";

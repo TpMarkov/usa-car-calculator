@@ -8,6 +8,28 @@ export type View =
   | "marketplace"
   | "carDetails";
 
+// Flexible media type to handle various API response formats
+export interface MediaData {
+  photo_links?: (
+    | string
+    | { url?: string; photo?: string; src?: string; image?: string }
+  )[];
+  all_photos?: (
+    | string
+    | { url?: string; photo?: string; src?: string; image?: string }
+  )[];
+  images?: (
+    | string
+    | { url?: string; photo?: string; src?: string; image?: string }
+  )[];
+  photos?: (
+    | string
+    | { url?: string; photo?: string; src?: string; image?: string }
+  )[];
+  // Store processed URLs for easy access
+  _processed_urls?: string[];
+}
+
 // Car listing type
 export interface Car {
   id: string;
@@ -22,9 +44,7 @@ export interface Car {
   fuel?: string;
   vin?: string;
   location?: string;
-  media?: {
-    photo_links?: string[];
-  };
+  media?: MediaData;
 }
 
 // Testimonial type
