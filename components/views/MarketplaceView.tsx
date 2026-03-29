@@ -1,95 +1,105 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import CarCard from "@/components/ui/CarCard";
 import type { Car, SearchFilters } from "@/types";
 
+const CARS_PER_PAGE = 9;
+
 export default function MarketplaceView() {
-  const [search, setSearch] = useState<SearchFilters>({
+  const [filters, setFilters] = useState<SearchFilters>({
     make: "",
     model: "",
     year: "",
     priceRange: "",
   });
 
-  const cars: Car[] = [
-    {
-      id: 1,
-      make: "Toyota",
-      model: "Camry",
-      year: 2022,
-      price: 24500,
-      image: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb",
-      mileage: "12,000 mi",
-      location: "Miami, FL",
-    },
-    {
-      id: 2,
-      make: "Ford",
-      model: "F-150",
-      year: 2021,
-      price: 38900,
-      image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888",
-      mileage: "25,000 mi",
-      location: "Dallas, TX",
-    },
-    {
-      id: 3,
-      make: "Tesla",
-      model: "Model 3",
-      year: 2023,
-      price: 42000,
-      image: "https://images.unsplash.com/photo-1560958089-b8a1929cea89",
-      mileage: "5,000 mi",
-      location: "Los Angeles, CA",
-    },
-    {
-      id: 4,
-      make: "BMW",
-      model: "X5",
-      year: 2020,
-      price: 45000,
-      image: "https://images.unsplash.com/photo-1555215695-3004980ad54e",
-      mileage: "30,000 mi",
-      location: "New York, NY",
-    },
-    {
-      id: 5,
-      make: "Honda",
-      model: "Civic",
-      year: 2019,
-      price: 18500,
-      image: "https://images.unsplash.com/photo-1594070319944-7c0c63146b77",
-      mileage: "45,000 mi",
-      location: "Chicago, IL",
-    },
-    {
-      id: 6,
-      make: "Porsche",
-      model: "911",
-      year: 2021,
-      price: 115000,
-      image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70",
-      mileage: "8,000 mi",
-      location: "San Francisco, CA",
-    },
-  ];
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [totalCars, setTotalCars] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [debouncedFilters, setDebouncedFilters] = useState<SearchFilters>(filters);
 
-  const filteredCars = cars.filter((car) => {
-    const matchMake = car.make.toLowerCase().includes(search.make.toLowerCase());
-    const matchModel = car.model
-      .toLowerCase()
-      .includes(search.model.toLowerCase());
-    const matchYear = search.year ? car.year.toString() === search.year : true;
-    let matchPrice = true;
-    if (search.priceRange) {
-      const [min, max] = search.priceRange.split("-").map(Number);
-      matchPrice = car.price >= min && (max ? car.price <= max : true);
+  const totalPages = Math.ceil(totalCars / CARS_PER_PAGE);
+
+  // Debounce filter changes (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedFilters.make, debouncedFilters.model, debouncedFilters.year, debouncedFilters.priceRange]);
+
+  // Fetch cars from API
+  const fetchCars = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Build query params
+      const params = new URLSearchParams();
+      params.set("page", currentPage.toString());
+      params.set("limit", CARS_PER_PAGE.toString());
+
+      if (debouncedFilters.make) params.set("make", debouncedFilters.make);
+      if (debouncedFilters.model) params.set("model", debouncedFilters.model);
+      if (debouncedFilters.year) params.set("year", debouncedFilters.year);
+      if (debouncedFilters.priceRange) {
+        const [min, max] = debouncedFilters.priceRange.split("-");
+        if (min) params.set("minPrice", min);
+        if (max) params.set("maxPrice", max);
+      }
+
+      const response = await fetch(`/api/cars?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch cars");
+      }
+
+      const data = await response.json();
+      setCars(data.cars || []);
+      setTotalCars(data.total || 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setCars([]);
+      setTotalCars(0);
+    } finally {
+      setLoading(false);
     }
-    return matchMake && matchModel && matchYear && matchPrice;
-  });
+  }, [currentPage, debouncedFilters]);
+
+  // Fetch when page or debounced filters change
+  useEffect(() => {
+    fetchCars();
+  }, [fetchCars]);
+
+  const handleFilterChange = (key: keyof SearchFilters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage((prev) => prev - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((prev) => prev + 1);
+    }
+  };
+
+  const isFirstPage = currentPage === 1;
+  const isLastPage = currentPage >= totalPages;
 
   return (
     <main className="pt-32 pb-32 px-6">
@@ -128,8 +138,8 @@ export default function MarketplaceView() {
                   type="text"
                   placeholder="e.g. Toyota"
                   className="w-full bg-surface py-4 pl-14 pr-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                  value={search.make}
-                  onChange={(e) => setSearch({ ...search, make: e.target.value })}
+                  value={filters.make}
+                  onChange={(e) => handleFilterChange("make", e.target.value)}
                 />
               </div>
             </div>
@@ -141,8 +151,8 @@ export default function MarketplaceView() {
                 type="text"
                 placeholder="e.g. Camry"
                 className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                value={search.model}
-                onChange={(e) => setSearch({ ...search, model: e.target.value })}
+                value={filters.model}
+                onChange={(e) => handleFilterChange("model", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -153,27 +163,21 @@ export default function MarketplaceView() {
                 type="number"
                 placeholder="Year"
                 className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                value={search.year}
-                onChange={(e) => setSearch({ ...search, year: e.target.value })}
+                value={filters.year}
+                onChange={(e) => handleFilterChange("year", e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">
                 Price Range
               </label>
-              <select
-                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium appearance-none"
-                value={search.priceRange}
-                onChange={(e) =>
-                  setSearch({ ...search, priceRange: e.target.value })
-                }
-              >
-                <option value="">Any Price</option>
-                <option value="0-10000">Under $10k</option>
-                <option value="10000-20000">$10k - $20k</option>
-                <option value="20000-50000">$20k - $50k</option>
-                <option value="50000-1000000">$50k+</option>
-              </select>
+              <input
+                type="text"
+                placeholder="min-max (e.g. 10000-50000)"
+                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
+                value={filters.priceRange}
+                onChange={(e) => handleFilterChange("priceRange", e.target.value)}
+              />
             </div>
             <button className="bg-brand text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-ink transition-all shadow-lg shadow-brand/20">
               <Filter size={18} />
@@ -182,23 +186,86 @@ export default function MarketplaceView() {
           </div>
         </section>
 
-        {/* Cars Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-          {filteredCars.map((car, i) => (
-            <CarCard key={car.id} car={car} index={i} />
-          ))}
-        </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-32">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
+              <p className="text-ink/40 font-medium">Loading cars...</p>
+            </div>
+          </div>
+        )}
 
-        {filteredCars.length === 0 && (
+        {/* Error State */}
+        {error && !loading && (
           <div className="text-center py-32">
-            <div className="w-24 h-24 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-8 text-ink/20">
+            <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-8 text-red-400">
               <Search size={48} />
             </div>
-            <h2 className="text-3xl font-display font-bold mb-4">No cars found</h2>
-            <p className="text-ink/40 text-lg">
-              Try adjusting your filters to find what you are looking for.
-            </p>
+            <h2 className="text-3xl font-display font-bold mb-4">Error loading cars</h2>
+            <p className="text-ink/40 text-lg">{error}</p>
           </div>
+        )}
+
+        {/* Cars Grid */}
+        {!loading && !error && (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
+              {cars.map((car, i) => (
+                <CarCard key={car.id} car={car} index={i} />
+              ))}
+            </div>
+
+            {/* No Cars Found */}
+            {cars.length === 0 && totalCars === 0 && (
+              <div className="text-center py-32">
+                <div className="w-24 h-24 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-8 text-ink/20">
+                  <Search size={48} />
+                </div>
+                <h2 className="text-3xl font-display font-bold mb-4">No cars found</h2>
+                <p className="text-ink/40 text-lg">
+                  Try adjusting your filters to find what you are looking for.
+                </p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-16">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={isFirstPage}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
+                    isFirstPage
+                      ? "bg-ink/5 text-ink/20 cursor-not-allowed"
+                      : "bg-white border border-ink/10 text-ink hover:bg-ink/5"
+                  }`}
+                >
+                  <ChevronLeft size={20} />
+                  <span>Previous</span>
+                </button>
+
+                <div className="flex items-center gap-2 px-4">
+                  <span className="text-ink/60 font-medium">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleNextPage}
+                  disabled={isLastPage}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
+                    isLastPage
+                      ? "bg-ink/5 text-ink/20 cursor-not-allowed"
+                      : "bg-brand text-white hover:bg-ink shadow-lg shadow-brand/20"
+                  }`}
+                >
+                  <span>Next</span>
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
