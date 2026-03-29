@@ -9,14 +9,18 @@ export type View =
 
 // Car listing type
 export interface Car {
-  id: number;
+  id: string;
+  title?: string;
   make: string;
   model: string;
   year: number;
-  price: number;
+  price?: number;
   image: string;
-  mileage: string;
-  location: string;
+  mileage?: number | string;
+  engine?: string;
+  fuel?: string;
+  vin?: string;
+  location?: string;
 }
 
 // Testimonial type

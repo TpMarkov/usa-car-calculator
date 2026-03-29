@@ -433,7 +433,7 @@ const MarketplaceView = ({ onViewChange }: { onViewChange: (view: View) => void 
                     </div>
                   </div>
                   <div className="text-2xl font-display font-bold text-brand">
-                    ${car.price.toLocaleString()}
+                    ${typeof car.price === 'number' && !isNaN(car.price) ? car.price.toLocaleString() : 'N/A'}
                   </div>
                 </div>
                 

@@ -2,62 +2,87 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Car } from "lucide-react";
 import CarCard from "@/components/ui/CarCard";
-import type { Car, SearchFilters } from "@/types";
+import type { Car as CarType } from "@/types";
 
-const CARS_PER_PAGE = 9;
+const CARS_PER_PAGE = 50;
+
+// Simple LRU cache for storing previously fetched pages
+interface CacheEntry {
+  cars: CarType[];
+  total: number;
+  timestamp: number;
+}
+
+class PageCache {
+  private cache: Map<number, CacheEntry> = new Map();
+  private maxSize = 10;
+  private accessOrder: number[] = [];
+
+  get(page: number): CacheEntry | null {
+    const entry = this.cache.get(page);
+    if (entry) {
+      // Update access order
+      this.accessOrder = this.accessOrder.filter(p => p !== page);
+      this.accessOrder.push(page);
+      return entry;
+    }
+    return null;
+  }
+
+  set(page: number, data: { cars: CarType[]; total: number }): void {
+    // Remove oldest if at max capacity
+    if (this.cache.size >= this.maxSize && this.accessOrder.length > 0) {
+      const oldest = this.accessOrder.shift();
+      if (oldest !== undefined) {
+        this.cache.delete(oldest);
+      }
+    }
+
+    this.cache.set(page, {
+      ...data,
+      timestamp: Date.now(),
+    });
+    this.accessOrder.push(page);
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.accessOrder = [];
+  }
+}
 
 export default function MarketplaceView() {
-  const [filters, setFilters] = useState<SearchFilters>({
-    make: "",
-    model: "",
-    year: "",
-    priceRange: "",
-  });
-
   const [currentPage, setCurrentPage] = useState(1);
-  const [cars, setCars] = useState<Car[]>([]);
+  const [cars, setCars] = useState<CarType[]>([]);
   const [totalCars, setTotalCars] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [debouncedFilters, setDebouncedFilters] = useState<SearchFilters>(filters);
+  const [pageInput, setPageInput] = useState("");
+  const [mounted, setMounted] = useState(false);
+  
+  // Use memo to prevent cache recreation on re-renders
+  const pageCache = useMemo(() => new PageCache(), []);
 
   const totalPages = Math.ceil(totalCars / CARS_PER_PAGE);
 
-  // Debounce filter changes (300ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 300);
+  // Fetch cars from API with caching
+  const fetchCars = useCallback(async (page: number) => {
+    // Check cache first
+    const cached = pageCache.get(page);
+    if (cached) {
+      setCars(cached.cars);
+      setTotalCars(cached.total);
+      return;
+    }
 
-    return () => clearTimeout(timer);
-  }, [filters]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedFilters.make, debouncedFilters.model, debouncedFilters.year, debouncedFilters.priceRange]);
-
-  // Fetch cars from API
-  const fetchCars = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Build query params
       const params = new URLSearchParams();
-      params.set("page", currentPage.toString());
-      params.set("limit", CARS_PER_PAGE.toString());
-
-      if (debouncedFilters.make) params.set("make", debouncedFilters.make);
-      if (debouncedFilters.model) params.set("model", debouncedFilters.model);
-      if (debouncedFilters.year) params.set("year", debouncedFilters.year);
-      if (debouncedFilters.priceRange) {
-        const [min, max] = debouncedFilters.priceRange.split("-");
-        if (min) params.set("minPrice", min);
-        if (max) params.set("maxPrice", max);
-      }
+      params.set("page", page.toString());
 
       const response = await fetch(`/api/cars?${params.toString()}`);
 
@@ -66,6 +91,13 @@ export default function MarketplaceView() {
       }
 
       const data = await response.json();
+      
+      // Cache the result
+      pageCache.set(page, { 
+        cars: data.cars || [], 
+        total: data.total || 0 
+      });
+      
       setCars(data.cars || []);
       setTotalCars(data.total || 0);
     } catch (err) {
@@ -75,16 +107,17 @@ export default function MarketplaceView() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedFilters]);
+  }, [pageCache]);
 
-  // Fetch when page or debounced filters change
+  // Set mounted state after hydration to prevent SSR/CSR mismatch with motion components
   useEffect(() => {
-    fetchCars();
-  }, [fetchCars]);
+    setMounted(true);
+  }, []);
 
-  const handleFilterChange = (key: keyof SearchFilters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
+  // Fetch on mount and when page changes
+  useEffect(() => {
+    fetchCars(currentPage);
+  }, [currentPage, fetchCars]);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
@@ -98,172 +131,252 @@ export default function MarketplaceView() {
     }
   };
 
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInput, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setPageInput("");
+    }
+  };
+
+  const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Only allow numbers
+    if (value === "" || /^\d+$/.test(value)) {
+      setPageInput(value);
+    }
+  };
+
   const isFirstPage = currentPage === 1;
-  const isLastPage = currentPage >= totalPages;
+  const isLastPage = totalPages > 0 && currentPage >= totalPages;
+
+  // Calculate showing range - use safe values to prevent NaN errors
+  const safeTotalCars = totalCars || 0;
+  const showingStart = safeTotalCars > 0 ? (currentPage - 1) * CARS_PER_PAGE + 1 : 0;
+  const showingEnd = Math.min(currentPage * CARS_PER_PAGE, safeTotalCars);
 
   return (
-    <main className="pt-32 pb-32 px-6">
+    <main className="pt-28 pb-20 px-4 sm:px-6" suppressHydrationWarning>
       <div className="max-w-7xl mx-auto">
-        {/* Intro Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-16"
-        >
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-1 bg-brand" />
-            <span className="text-brand font-bold uppercase tracking-[0.3em] text-sm">
-              US Marketplace
-            </span>
-          </div>
-          <h1 className="text-7xl md:text-9xl font-display font-bold tracking-tighter leading-[0.85] mb-8">
-            Find Your <span className="text-brand">Dream</span> Car
-          </h1>
-          <p className="text-2xl text-ink/40 max-w-3xl font-medium leading-tight">
-            Browse thousands of vehicles from top US marketplaces. We handle the
-            inspection, shipping, and import for you.
-          </p>
-        </motion.section>
+        {/* Intro Section - use static div until mounted to avoid hydration mismatch */}
+        {mounted ? (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-12"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-0.5 bg-brand" />
+              <span className="text-brand font-bold uppercase tracking-[0.2em] text-xs">
+                US Marketplace
+              </span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[0.95] mb-4">
+              Find Your <span className="text-brand">Dream</span> Car
+            </h1>
+            <p className="text-base sm:text-lg text-gray-500 max-w-2xl font-medium leading-relaxed">
+              Browse thousands of vehicles from top US marketplaces. We handle the
+              inspection, shipping, and import for you.
+            </p>
+          </motion.section>
+        ) : (
+          <section className="mb-12">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-0.5 bg-brand" />
+              <span className="text-brand font-bold uppercase tracking-[0.2em] text-xs">
+                US Marketplace
+              </span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[0.95] mb-4">
+              Find Your <span className="text-brand">Dream</span> Car
+            </h1>
+            <p className="text-base sm:text-lg text-gray-500 max-w-2xl font-medium leading-relaxed">
+              Browse thousands of vehicles from top US marketplaces. We handle the
+              inspection, shipping, and import for you.
+            </p>
+          </section>
+        )}
 
-        {/* Filters */}
-        <section className="mb-16 p-8 bg-white border border-ink/5 rounded-[3rem] shadow-2xl shadow-ink/5">
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">
-                Make
-              </label>
-              <div className="relative">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-ink/30" size={18} />
-                <input
-                  type="text"
-                  placeholder="e.g. Toyota"
-                  className="w-full bg-surface py-4 pl-14 pr-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                  value={filters.make}
-                  onChange={(e) => handleFilterChange("make", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">
-                Model
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Camry"
-                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                value={filters.model}
-                onChange={(e) => handleFilterChange("model", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">
-                Year
-              </label>
-              <input
-                type="number"
-                placeholder="Year"
-                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                value={filters.year}
-                onChange={(e) => handleFilterChange("year", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-ink/40 ml-4">
-                Price Range
-              </label>
-              <input
-                type="text"
-                placeholder="min-max (e.g. 10000-50000)"
-                className="w-full bg-surface py-4 px-6 rounded-2xl outline-none focus:ring-2 ring-brand/20 transition-all font-medium"
-                value={filters.priceRange}
-                onChange={(e) => handleFilterChange("priceRange", e.target.value)}
-              />
-            </div>
-            <button className="bg-brand text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-ink transition-all shadow-lg shadow-brand/20">
-              <Filter size={18} />
-              <span>Search Cars</span>
-            </button>
-          </div>
-        </section>
+        {/* Results Summary */}
+        {!loading && !error && totalCars > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+          >
+            <p className="text-sm text-gray-500">
+              Showing <span className="font-semibold text-gray-900">{showingStart?.toLocaleString() ?? 0}</span>
+              {" "}to{" "}
+              <span className="font-semibold text-gray-900">{showingEnd?.toLocaleString() ?? 0}</span>
+              {" "}of{" "}
+              <span className="font-semibold text-gray-900">{totalCars?.toLocaleString() ?? 0}</span> cars
+            </p>
+            <p className="text-sm text-gray-500">
+              Sorted by: Newest First
+            </p>
+          </motion.div>
+        )}
 
         {/* Loading State */}
         {loading && (
-          <div className="flex items-center justify-center py-32">
+          <div className="flex items-center justify-center py-20 sm:py-32">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
-              <p className="text-ink/40 font-medium">Loading cars...</p>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-[3px] border-brand/20 border-t-brand rounded-full animate-spin" />
+              <p className="text-gray-400 font-medium text-sm">Loading cars...</p>
             </div>
           </div>
         )}
 
         {/* Error State */}
         {error && !loading && (
-          <div className="text-center py-32">
-            <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-8 text-red-400">
-              <Search size={48} />
+          <div className="text-center py-16 sm:py-24">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 text-red-400">
+              <Search size={40} />
             </div>
-            <h2 className="text-3xl font-display font-bold mb-4">Error loading cars</h2>
-            <p className="text-ink/40 text-lg">{error}</p>
+            <h2 className="text-2xl sm:text-3xl font-display font-bold mb-3">Error loading cars</h2>
+            <p className="text-gray-400 text-base mb-6">{error}</p>
+            <button
+              onClick={() => fetchCars(currentPage)}
+              className="px-6 py-3 bg-brand text-white rounded-xl font-semibold hover:bg-brand/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         )}
 
         {/* Cars Grid */}
         {!loading && !error && (
           <>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
               {cars.map((car, i) => (
-                <CarCard key={car.id} car={car} index={i} />
+                <CarCard key={car.id || i} car={car} index={i} />
               ))}
             </div>
 
             {/* No Cars Found */}
             {cars.length === 0 && totalCars === 0 && (
-              <div className="text-center py-32">
-                <div className="w-24 h-24 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-8 text-ink/20">
-                  <Search size={48} />
+              <div className="text-center py-16 sm:py-24">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
+                  <Car size={40} />
                 </div>
-                <h2 className="text-3xl font-display font-bold mb-4">No cars found</h2>
-                <p className="text-ink/40 text-lg">
-                  Try adjusting your filters to find what you are looking for.
+                <h2 className="text-2xl sm:text-3xl font-display font-bold mb-3">No cars found</h2>
+                <p className="text-gray-400 text-base">
+                  Please check back later for new listings.
                 </p>
               </div>
             )}
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-4 mt-16">
-                <button
-                  onClick={handlePrevPage}
-                  disabled={isFirstPage}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-                    isFirstPage
-                      ? "bg-ink/5 text-ink/20 cursor-not-allowed"
-                      : "bg-white border border-ink/10 text-ink hover:bg-ink/5"
-                  }`}
-                >
-                  <ChevronLeft size={20} />
-                  <span>Previous</span>
-                </button>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex flex-col items-center gap-4 mt-10 sm:mt-12"
+              >
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                  {/* Previous Button */}
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={isFirstPage}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                      isFirstPage
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                    }`}
+                  >
+                    <ChevronLeft size={18} />
+                    <span className="hidden sm:inline">Previous</span>
+                  </button>
 
-                <div className="flex items-center gap-2 px-4">
-                  <span className="text-ink/60 font-medium">
-                    Page {currentPage} of {totalPages}
-                  </span>
+                  {/* Page Numbers */}
+                  <div className="flex items-center gap-1.5 px-2">
+                    {currentPage > 2 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          className="w-10 h-10 rounded-lg font-medium text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          1
+                        </button>
+                        {currentPage > 3 && (
+                          <span className="text-gray-400 px-1">...</span>
+                        )}
+                      </>
+                    )}
+                    
+                    {currentPage > 1 && (
+                      <button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        className="w-10 h-10 rounded-lg font-medium text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        {currentPage - 1}
+                      </button>
+                    )}
+
+                    <span className="w-10 h-10 rounded-lg bg-brand text-white font-bold text-sm flex items-center justify-center">
+                      {currentPage}
+                    </span>
+
+                    {currentPage < totalPages && (
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        className="w-10 h-10 rounded-lg font-medium text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        {currentPage + 1}
+                      </button>
+                    )}
+
+                    {currentPage < totalPages - 1 && (
+                      <>
+                        {currentPage < totalPages - 2 && (
+                          <span className="text-gray-400 px-1">...</span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="w-10 h-10 rounded-lg font-medium text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={handleNextPage}
+                    disabled={isLastPage}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                      isLastPage
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-brand text-white hover:bg-brand/90 shadow-lg shadow-brand/20"
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight size={18} />
+                  </button>
                 </div>
 
-                <button
-                  onClick={handleNextPage}
-                  disabled={isLastPage}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-                    isLastPage
-                      ? "bg-ink/5 text-ink/20 cursor-not-allowed"
-                      : "bg-brand text-white hover:bg-ink shadow-lg shadow-brand/20"
-                  }`}
-                >
-                  <span>Next</span>
-                  <ChevronRight size={20} />
-                </button>
-              </div>
+                {/* Page Jump Input */}
+                <form onSubmit={handlePageInputSubmit} className="flex items-center gap-2 mt-2">
+                  <span className="text-sm text-gray-500">Go to page:</span>
+                  <input
+                    type="text"
+                    value={pageInput}
+                    onChange={handlePageInputChange}
+                    placeholder={String(currentPage)}
+                    className="w-16 sm:w-20 px-3 py-2 text-sm text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                    maxLength={6}
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    Go
+                  </button>
+                </form>
+              </motion.div>
             )}
           </>
         )}
