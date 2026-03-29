@@ -45,16 +45,49 @@ function normalizeCar(car: any): NormalizedCar {
   // Extract images from various possible locations
   let image = "";
 
+  // Check media.photos array (common Marketcheck format)
   if (car.media && car.media.photos && car.media.photos.length > 0) {
     const photos = car.media.photos;
     const largePhoto = photos.find((p: any) => p.size === "large");
     const mediumPhoto = photos.find((p: any) => p.size === "medium");
     const firstPhoto = photos[0];
     image = largePhoto?.url || mediumPhoto?.url || firstPhoto?.url || "";
-  } else if (car.images && car.images.length > 0) {
+  }
+  // Check media.images array
+  else if (
+    car.media &&
+    car.media.images &&
+    Array.isArray(car.media.images) &&
+    car.media.images.length > 0
+  ) {
+    image = car.media.images[0];
+  }
+  // Check images array
+  else if (car.images && Array.isArray(car.images) && car.images.length > 0) {
     image = car.images[0];
-  } else if (car.image && typeof car.image === "string") {
+  }
+  // Check image field (string)
+  else if (car.image && typeof car.image === "string") {
     image = car.image;
+  }
+  // Check photo_urls array
+  else if (
+    car.photo_urls &&
+    Array.isArray(car.photo_urls) &&
+    car.photo_urls.length > 0
+  ) {
+    image = car.photo_urls[0];
+  }
+  // Check photos array (simple string URLs)
+  else if (car.photos && Array.isArray(car.photos) && car.photos.length > 0) {
+    image =
+      typeof car.photos[0] === "string"
+        ? car.photos[0]
+        : car.photos[0]?.url || "";
+  }
+  // Fallback to placeholder if no image found
+  if (!image) {
+    image = "https://placehold.co/600x400?text=No+Image";
   }
 
   // Handle different Marketcheck response formats
