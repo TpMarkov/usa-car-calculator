@@ -8,6 +8,7 @@ import type { Car } from "@/types";
 interface CarCardProps {
   car: Car;
   index: number;
+  onSelectCar?: (car: Car) => void;
 }
 
 // Helper function to safely format numbers
@@ -16,7 +17,19 @@ const formatNumber = (num?: number): string => {
   return num.toLocaleString();
 };
 
-export default function CarCard({ car, index }: CarCardProps) {
+export default function CarCard({ car, index, onSelectCar }: CarCardProps) {
+  // Handle card click
+  const handleCardClick = () => {
+    console.log('[CarCard] handleCardClick called with car:', car?.id);
+    console.log('[CarCard] onSelectCar is:', typeof onSelectCar);
+    if (onSelectCar) {
+      console.log('[CarCard] Calling onSelectCar with car:', car?.id);
+      onSelectCar(car);
+    } else {
+      console.log('[CarCard] onSelectCar is NOT defined!');
+    }
+  };
+
   // Format mileage for display
   const formatMileage = (miles?: number | string) => {
     if (!miles && miles !== 0) return "N/A";
@@ -37,7 +50,8 @@ export default function CarCard({ car, index }: CarCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.05 }}
-      className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300"
+      onClick={handleCardClick}
+      className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300 cursor-pointer"
     >
       <div className="aspect-[16/10] overflow-hidden relative bg-gray-100">
         <img

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronLeft, ChevronRight, Car } from "lucide-react";
 import CarCard from "@/components/ui/CarCard";
+import { useCars } from "@/src/context/CarsContext";
 import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;
@@ -13,6 +14,10 @@ interface CacheEntry {
   cars: CarType[];
   total: number;
   timestamp: number;
+}
+
+interface MarketplaceViewProps {
+  onSelectCar?: (car: CarType) => void;
 }
 
 class PageCache {
@@ -53,8 +58,23 @@ class PageCache {
   }
 }
 
-export default function MarketplaceView() {
+export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
+  const { addCars } = useCars();
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Handle car selection - store in context and allow navigation
+  const handleSelectCar = (car: CarType) => {
+    console.log('[MarketplaceView] handleSelectCar called with car:', car?.id);
+    // Store car in context
+    addCars([car]);
+    // Call the navigation callback if provided
+    if (onSelectCar) {
+      console.log('[MarketplaceView] Calling parent onSelectCar');
+      onSelectCar(car);
+    } else {
+      console.log('[MarketplaceView] parent onSelectCar is NOT defined!');
+    }
+  };
   const [cars, setCars] = useState<CarType[]>([]);
   const [totalCars, setTotalCars] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -98,8 +118,12 @@ export default function MarketplaceView() {
         total: data.total || 0 
       });
       
-      setCars(data.cars || []);
+      const fetchedCars = data.cars || [];
+      setCars(fetchedCars);
       setTotalCars(data.total || 0);
+      
+      // Store fetched cars in context
+      addCars(fetchedCars);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setCars([]);
@@ -250,7 +274,7 @@ export default function MarketplaceView() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
               {cars.map((car, i) => (
-                <CarCard key={car.id || i} car={car} index={i} />
+                <CarCard key={car.id || i} car={car} index={i} onSelectCar={handleSelectCar} />
               ))}
             </div>
 

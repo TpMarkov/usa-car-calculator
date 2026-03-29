@@ -1,19 +1,44 @@
-import type { Metadata } from "next";
+"use client";
+
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import MarketplaceView from "@/components/views/MarketplaceView";
+import CarDetailsView from "@/components/views/CarDetailsView";
+import { CarsProvider } from "@/src/context/CarsContext";
+import { useState } from "react";
+import type { Car } from "@/types";
 
-export const metadata: Metadata = {
-  title: "Marketplace | USA Car Import Calculator",
-  description: "Browse and search vehicles from US marketplaces. Find your dream car and calculate import costs.",
-};
+// Metadata is handled by parent layout (app/layout.tsx)
 
-export default function MarketplacePage() {
+function MarketplacePageContent() {
+  const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
+
+  const handleSelectCar = (car: Car) => {
+    console.log('[MarketplacePage] handleSelectCar called with car:', car?.id);
+    setSelectedCarId(car.id);
+  };
+
+  const handleBackToMarketplace = () => {
+    setSelectedCarId(null);
+  };
+
   return (
     <div className="min-h-screen bg-surface">
       <Navbar currentView="marketplace" />
-      <MarketplaceView />
+      {selectedCarId ? (
+        <CarDetailsView carId={selectedCarId} onBack={handleBackToMarketplace} />
+      ) : (
+        <MarketplaceView onSelectCar={handleSelectCar} />
+      )}
       <Footer />
     </div>
+  );
+}
+
+export default function MarketplacePage() {
+  return (
+    <CarsProvider>
+      <MarketplacePageContent />
+    </CarsProvider>
   );
 }

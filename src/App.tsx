@@ -1,4 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
+import { CarsProvider, useCars } from './context/CarsContext';
+import CarDetailsView from '@/components/views/CarDetailsView';
+import MarketplaceViewComponent from '@/components/views/MarketplaceView';
+import type { Car as CarType } from '@/types';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowRight, 
@@ -24,7 +28,7 @@ import {
 import { cn } from './lib/utils';
 
 // --- Types ---
-type View = 'landing' | 'breakdown' | 'how-it-works' | 'guide' | 'contact' | 'marketplace';
+type View = 'landing' | 'breakdown' | 'how-it-works' | 'guide' | 'contact' | 'marketplace' | 'carDetails';
 
 // --- Components ---
 
@@ -848,8 +852,21 @@ const Testimonial = ({ quote, author, index }: { quote: string, author: string, 
 // --- Main App Component ---
 
 export default function App() {
+  const { setCars } = useCars();
   const [view, setView] = useState<View>('landing');
+  const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
   const [url, setUrl] = useState('');
+  
+  // Handle car selection from MarketplaceView
+  const handleSelectCar = useCallback((car: CarType) => {
+    console.log('[App] handleSelectCar called with car:', car?.id);
+    // Add car to context
+    setCars([car]);
+    // Navigate to car details
+    setSelectedCarId(car.id);
+    console.log('[App] Setting view to carDetails, selectedCarId:', car.id);
+    setView('carDetails');
+  }, [setCars]);
   const [isCalculating, setIsCalculating] = useState(false);
 
   const handleCalculate = (e: React.FormEvent) => {
@@ -865,10 +882,22 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
-      <Navbar onViewChange={setView} currentView={view} />
+    <CarsProvider>
+      <div className="min-h-screen bg-surface">
+        <Navbar onViewChange={setView} currentView={view} />
 
       <AnimatePresence mode="wait">
+        {view === 'carDetails' && selectedCarId && (
+          <motion.div
+            key="carDetails"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <CarDetailsView carId={selectedCarId} onBack={() => { setSelectedCarId(null); setView('marketplace'); }} />
+          </motion.div>
+        )}
         {view === 'landing' && (
           <motion.div
             key="landing"
@@ -1350,7 +1379,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <MarketplaceView onViewChange={setView} />
+            <MarketplaceViewComponent onSelectCar={handleSelectCar} />
           </motion.div>
         )}
         {view === 'contact' && (
@@ -1366,7 +1395,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </CarsProvider>
   );
 }

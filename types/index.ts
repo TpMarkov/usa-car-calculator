@@ -5,7 +5,8 @@ export type View =
   | "how-it-works"
   | "guide"
   | "contact"
-  | "marketplace";
+  | "marketplace"
+  | "carDetails";
 
 // Car listing type
 export interface Car {
