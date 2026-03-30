@@ -8,6 +8,8 @@ import { useCars } from "@/context/CarsContext";
 import type { Car as CarType } from "@/types";
 
 const CARS_PER_PAGE = 50;
+const MAX_OFFSET = 1000;
+const MAX_PAGE = Math.floor(MAX_OFFSET / CARS_PER_PAGE); // 20
 const LAST_PAGE_KEY = "lastMarketplacePage";
 const CARS_TOTAL_KEY = "carsTotal";
 
@@ -28,7 +30,8 @@ function getCachedCars(page: number): { cars: CarType[]; total: number } | null 
   try {
     // Check for page-specific cache key
     const cachedCars = localStorage.getItem(`carsPage_${page}`);
-    const cachedTotal = localStorage.getItem(CARS_TOTAL_KEY);
+    // Get page-specific total
+    const cachedTotal = localStorage.getItem(`carsTotal_${page}`);
     if (cachedCars && cachedTotal) {
       return {
         cars: JSON.parse(cachedCars),
@@ -118,11 +121,16 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   const [pageInput, setPageInput] = useState("");
   const [mounted, setMounted] = useState(false);
   const fetchInProgress = useRef(false);
+  const pageInputDebounce = useRef<NodeJS.Timeout | null>(null);
+  const preloadedPages = useRef<Set<number>>(new Set());
   
   // Use memo to prevent cache recreation on re-renders
   const pageCache = useMemo(() => new PageCache(), []);
 
-  const totalPages = Math.ceil(totalCars / CARS_PER_PAGE);
+  const totalPages = Math.min(Math.ceil(totalCars / CARS_PER_PAGE), MAX_PAGE);
+
+  // DEBUG: Log pagination state
+  console.log(`[MarketplaceView] Pagination Debug: totalCars=${totalCars}, CARS_PER_PAGE=${CARS_PER_PAGE}, totalPages=${totalPages}, MAX_PAGE=${MAX_PAGE}, loading=${loading}, error=${error}`);
 
   // Fetch cars from API with caching
   const fetchCars = useCallback(async (page: number) => {
@@ -169,14 +177,28 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       // Also update localStorage cache with page-specific key
       try {
         localStorage.setItem(`carsPage_${page}`, JSON.stringify(data.cars || []));
-        localStorage.setItem(CARS_TOTAL_KEY, String(data.total || 0));
+        localStorage.setItem(`carsTotal_${page}`, String(data.total || 0));
       } catch (e) {
         console.error("Failed to cache cars:", e);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setCars([]);
-      setTotalCars(0);
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      console.error(
+        `[MarketplaceView] fetchCars error on page ${page}:`,
+        errorMessage,
+        err,
+      );
+      // Don't clear cars on error - keep showing previous data
+      // Only show error for actual failures, not empty results
+      // Empty results for high page numbers are expected behavior
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError") || errorMessage.includes("fetch")) {
+        setError("Error loading cars. Please try again.");
+      } else if (page >= MAX_PAGE) {
+        setError("No more results available.");
+      } else {
+        setError(null); // Clear any previous error
+      }
+      // Don't clear cars on error - keep showing previous data
     } finally {
       setLoading(false);
       fetchInProgress.current = false;
@@ -195,38 +217,64 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       // (It will be re-saved when selecting a car again)
       localStorage.removeItem(LAST_PAGE_KEY);
     }
+    
+    // Clear localStorage cache for pages > 1 to ensure fresh data and pagination
+    // This prevents stale error states from being cached and persists across refreshes
+    if (typeof window !== 'undefined') {
+      for (let p = 2; p <= MAX_PAGE; p++) {
+        const cacheKey = `carsPage_${p}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const cachedData = JSON.parse(cached);
+            // Clear pages with empty results or errors
+            if (!cachedData || cachedData.length === 0) {
+              localStorage.removeItem(cacheKey);
+              localStorage.removeItem(`carsTotal_${p}`);
+            }
+          } catch (e) {
+            // Invalid cache data, remove it
+            localStorage.removeItem(cacheKey);
+            localStorage.removeItem(`carsTotal_${p}`);
+          }
+        }
+      }
+    }
   }, []);
 
-  // Fetch on mount - use cached data first, only make API call if cache is empty
+  // Fetch on mount - use cached data for cars but always fetch fresh total from API
   useEffect(() => {
-    // First check localStorage cache for this specific page
+    // Check localStorage cache for this specific page
     const cachedData = getCachedCars(currentPage);
+    
     if (cachedData && cachedData.cars.length > 0) {
       console.log(`[MarketplaceView] Using cached cars from localStorage for page ${currentPage}:`, cachedData.cars.length);
       setCars(cachedData.cars);
+      // Use cached total only if API fetch hasn't happened yet
       setTotalCars(cachedData.total);
+      setError(null); // Clear any previous error when using cache
       // Also update the page cache
       pageCache.set(currentPage, { cars: cachedData.cars, total: cachedData.total });
-      return;
     }
 
-    // If no cache, fetch from API
-    console.log(`[MarketplaceView] No cache found for page ${currentPage}, fetching from API`);
+    // Always fetch fresh data from API to get accurate total and handle edge cases
+    console.log(`[MarketplaceView] Fetching fresh data from API for page ${currentPage}`);
     fetchCars(currentPage);
   }, []);
 
-  // Handle page changes - fetch new data when currentPage changes
+  // Handle page changes - always fetch fresh data to get accurate total
   useEffect(() => {
     // Skip on mount (handled by the effect above)
     if (mounted) {
-      console.log(`[MarketplaceView] Page changed to ${currentPage}, checking cache`);
+      console.log(`[MarketplaceView] Page changed to ${currentPage}, fetching fresh data`);
       
-      // Check page cache first
+      // Check page cache first for cars display
       const cached = pageCache.get(currentPage);
       if (cached) {
         console.log(`[MarketplaceView] Using page cache for page ${currentPage}`);
         setCars(cached.cars);
         setTotalCars(cached.total);
+        setError(null); // Clear any previous error when using cache
         return;
       }
       
@@ -235,16 +283,62 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
       if (cachedData && cachedData.cars.length > 0) {
         console.log(`[MarketplaceView] Using localStorage cache for page ${currentPage}`);
         setCars(cachedData.cars);
+        // Use cached total as fallback, but fetch API for accurate total
         setTotalCars(cachedData.total);
         pageCache.set(currentPage, { cars: cachedData.cars, total: cachedData.total });
-        return;
       }
       
-      // Fetch from API if not cached
+      // Always fetch from API for accurate total and proper pagination
       console.log(`[MarketplaceView] Fetching page ${currentPage} from API`);
       fetchCars(currentPage);
     }
   }, [currentPage, mounted]);
+
+  // Optional: Preload next page when on page < MAX_PAGE - 1
+  useEffect(() => {
+    if (mounted && currentPage < MAX_PAGE - 1 && !loading && !fetchInProgress.current) {
+      const nextPage = currentPage + 1;
+      // Skip if already preloaded or cached
+      if (!preloadedPages.current.has(nextPage) && !pageCache.get(nextPage) && !getCachedCars(nextPage)) {
+        console.log(`[MarketplaceView] Preloading page ${nextPage} in background`);
+        preloadedPages.current.add(nextPage);
+        
+        // Background fetch without updating state
+        const params = new URLSearchParams();
+        params.set("page", nextPage.toString());
+        
+        fetch(`/api/cars?${params.toString()}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.cars && data.cars.length > 0) {
+              pageCache.set(nextPage, { 
+                cars: data.cars, 
+                total: data.total || 0 
+              });
+              // Also cache in localStorage
+              try {
+                localStorage.setItem(`carsPage_${nextPage}`, JSON.stringify(data.cars));
+                localStorage.setItem(`carsTotal_${nextPage}`, String(data.total || 0));
+              } catch (e) {
+                console.error("Failed to cache preloaded cars:", e);
+              }
+            }
+          })
+          .catch(err => {
+            console.log(`[MarketplaceView] Preload failed for page ${nextPage}:`, err);
+          });
+      }
+    }
+  }, [currentPage, mounted, loading]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pageInputDebounce.current) {
+        clearTimeout(pageInputDebounce.current);
+      }
+    };
+  }, []);
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
@@ -253,7 +347,7 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   };
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < MAX_PAGE && currentPage < totalPages) {
       setCurrentPage((prev) => prev + 1);
     }
   };
@@ -261,8 +355,10 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
   const handlePageInputSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const pageNum = parseInt(pageInput, 10);
-    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-      setCurrentPage(pageNum);
+    // Clamp to valid range (1 to MAX_PAGE)
+    const validPage = Math.max(1, Math.min(Math.floor(pageNum), MAX_PAGE));
+    if (!isNaN(validPage) && validPage >= 1 && validPage <= MAX_PAGE) {
+      setCurrentPage(validPage);
       setPageInput("");
     }
   };
@@ -272,11 +368,24 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
     // Only allow numbers
     if (value === "" || /^\d+$/.test(value)) {
       setPageInput(value);
+      
+      // Debounce: clear previous timer and set new one
+      if (pageInputDebounce.current) {
+        clearTimeout(pageInputDebounce.current);
+      }
+      
+      const inputNum = parseInt(value, 10);
+      if (!isNaN(inputNum) && inputNum >= 1 && inputNum <= MAX_PAGE) {
+        pageInputDebounce.current = setTimeout(() => {
+          setCurrentPage(inputNum);
+          setPageInput("");
+        }, 400); // 400ms debounce
+      }
     }
   };
 
   const isFirstPage = currentPage === 1;
-  const isLastPage = totalPages > 0 && currentPage >= totalPages;
+  const isLastPage = currentPage >= MAX_PAGE || (totalPages > 0 && currentPage >= totalPages);
 
   // Calculate showing range - use safe values to prevent NaN errors
   const safeTotalCars = totalCars || 0;
@@ -494,8 +603,9 @@ export default function MarketplaceView({ onSelectCar }: MarketplaceViewProps) {
                     onChange={handlePageInputChange}
                     placeholder={String(currentPage)}
                     className="w-16 sm:w-20 px-3 py-2 text-sm text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
-                    maxLength={6}
+                    maxLength={3}
                   />
+                  <span className="text-sm text-gray-400">/ {MAX_PAGE}</span>
                   <button
                     type="submit"
                     className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"

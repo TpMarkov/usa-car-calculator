@@ -79,12 +79,7 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('[CarDetailsView] Mounting with carId:', carId);
-    console.log('[CarDetailsView] Window defined:', typeof window !== 'undefined');
-    console.log('[CarDetailsView] localStorage available:', typeof window !== 'undefined' && !!window.localStorage);
-
     if (!carId) {
-      console.log('[CarDetailsView] No carId provided, setting loading to false');
       setLoading(false);
       return;
     }
@@ -92,27 +87,28 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
     // Try to get car from localStorage first
     const storedCar = getCarFromStorage(carId);
     if (storedCar) {
-      console.log('[CarDetailsView] Found car in localStorage:', storedCar.id);
       setCar(storedCar);
       setLoading(false);
       return;
     }
 
-    console.log('[CarDetailsView] Car not in localStorage, trying API fetch');
-    // If not in localStorage, try to fetch from API
+    // If not in localStorage, try to fetch from API using single-car endpoint
     const fetchCarFromApi = async () => {
       try {
-        console.log('[CarDetailsView] Fetching all cars from API to find carId:', carId);
-        const response = await fetch('/api/cars?page=1');
+        const response = await fetch(`/api/cars/${encodeURIComponent(carId)}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch cars');
+          if (response.status === 404) {
+            setFetchError(`Car with ID ${carId} not found in current inventory`);
+          } else {
+            throw new Error('Failed to fetch car');
+          }
+          setLoading(false);
+          return;
         }
         const data = await response.json();
-        console.log('[CarDetailsView] API returned', data.cars?.length, 'cars');
         
-        const foundCar = data.cars?.find((c: Car) => c.id === carId);
+        const foundCar = data.car;
         if (foundCar) {
-          console.log('[CarDetailsView] Found car via API:', foundCar.id);
           setCar(foundCar);
           // Cache in localStorage for future visits
           try {
@@ -125,16 +121,14 @@ export default function CarDetailsView({ carId, onBack }: CarDetailsViewProps) {
               cars.push(foundCar);
             }
             localStorage.setItem('carsCache', JSON.stringify(cars));
-            console.log('[CarDetailsView] Cached car in localStorage');
           } catch (e) {
-            console.error('[CarDetailsView] Failed to cache car:', e);
+            console.error('Failed to cache car:', e);
           }
         } else {
-          console.log('[CarDetailsView] Car not found in API response');
           setFetchError(`Car with ID ${carId} not found in current inventory`);
         }
       } catch (error) {
-        console.error('[CarDetailsView] API fetch failed:', error);
+        console.error('API fetch failed:', error);
         setFetchError('Failed to load car data');
       } finally {
         setLoading(false);
